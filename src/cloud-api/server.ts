@@ -14,6 +14,7 @@ import {
 } from "./tencent/tencent-cloud";
 import { recognizeAudio as OpenAIASR } from "./openai/openai-asr";
 import { recognizeAudio as GeminiASR } from "./gemini/gemini-asr";
+import { recognizeAudio as ElevenLabsASR } from "./elevenlabs/elevenlabs-asr";
 import { recognizeAudio as VoskASR } from "./local/vosk-asr";
 import { recognizeAudio as WisperASR } from "./local/whisper-asr";
 import { recognizeAudio as WisperHttpASR } from "./local/whisper-http-asr";
@@ -99,6 +100,9 @@ switch (asrServer) {
   case ASRServer.gemini:
     recognizeAudio = GeminiASR;
     break;
+  case ASRServer.elevenlabs:
+    recognizeAudio = ElevenLabsASR;
+    break;
   case ASRServer.vosk:
     recognizeAudio = VoskASR;
     break;
@@ -116,7 +120,7 @@ switch (asrServer) {
     break;
   default:
     console.warn(
-      `unknown asr server: ${asrServer}, should be volcengine/tencent/openai/gemini/vosk/whisper/whisper-http/llm8850whisper/fasterwhisper`
+      `unknown asr server: ${asrServer}, should be volcengine/tencent/openai/gemini/elevenlabs/vosk/whisper/whisper-http/llm8850whisper/fasterwhisper`
     );
     break;
 }

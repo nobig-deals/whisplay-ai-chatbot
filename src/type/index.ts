@@ -17,6 +17,7 @@ export enum ASRServer {
   tencent = "tencent",
   openai = "openai",
   gemini = "gemini",
+  elevenlabs = "elevenlabs",
   vosk = "vosk",
   whisper = "whisper",
   whisperhttp = "whisper-http",
