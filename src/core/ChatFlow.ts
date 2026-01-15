@@ -23,6 +23,7 @@ import {
 } from "../cloud-api/server";
 import type { RealtimeASRSession } from "../cloud-api/elevenlabs/elevenlabs-asr-realtime";
 import { extractEmojis } from "../utils";
+import { t } from "../i18n";
 import { StreamResponser } from "./StreamResponsor";
 import { cameraDir, recordingsDir } from "../utils/dir";
 import { getLatestDisplayImg, setLatestCapturedImg } from "../utils/image";
@@ -49,7 +50,7 @@ class ChatFlow {
         if (this.currentFlowName !== "answer") return;
         const fullText = sentences.join(" ");
         display({
-          status: "answering",
+          status: t("answering"),
           emoji: extractEmojis(fullText) || "😊",
           text: fullText,
           RGB: "#0000ff",
@@ -59,7 +60,7 @@ class ChatFlow {
       (text: string) => {
         if (this.currentFlowName !== "answer") return;
         display({
-          status: "answering",
+          status: t("answering"),
           text: text || undefined,
           scroll_speed: 3,
         });
@@ -90,7 +91,7 @@ class ChatFlow {
       this.thinkingSentences.push(...sentences);
       const displayText = this.thinkingSentences.join(" ");
       display({
-        status: "Thinking",
+        status: t("thinking"),
         emoji: "🤔",
         text: displayText,
         RGB: "#ff6800", // yellow
@@ -125,14 +126,14 @@ class ChatFlow {
           });
         }
         display({
-          status: "idle",
+          status: t("idle"),
           emoji: "😴",
           RGB: "#000055",
-          ...(getCurrentStatus().text === "Listening..."
+          ...(getCurrentStatus().text === t("listeningText")
             ? {
-                text: `Long Press the button to say something${
-                  this.enableCamera ? ",\ndouble click to launch camera" : ""
-                }.`,
+                text: this.enableCamera
+                  ? t("pressButtonWithCameraText")
+                  : t("pressButtonText"),
               }
             : {}),
         });
@@ -149,7 +150,7 @@ class ChatFlow {
             this.realtimeASRSession.on("partial", (text: string) => {
               if (this.currentFlowName === "listening" && text) {
                 display({
-                  status: "listening",
+                  status: t("listening"),
                   text: text,
                   RGB: "#00ff00",
                 });
@@ -165,7 +166,7 @@ class ChatFlow {
 
             onButtonReleased(() => {
               display({
-                status: "recognizing",
+                status: t("recognizing"),
                 RGB: "#ff6800", // yellow
               });
               // Stop and get final transcript
@@ -175,7 +176,7 @@ class ChatFlow {
                 if (result) {
                   console.log("Realtime ASR result:", result);
                   this.asrText = result;
-                  display({ status: "recognizing", text: result });
+                  display({ status: t("recognizing"), text: result });
                   this.setCurrentFlow("answer");
                 } else {
                   this.setCurrentFlow("sleep");
@@ -184,10 +185,10 @@ class ChatFlow {
             });
 
             display({
-              status: "listening",
+              status: t("listening"),
               emoji: "😐",
               RGB: "#00ff00",
-              text: "Listening...",
+              text: t("listeningText"),
             });
             break;
           }
@@ -215,16 +216,16 @@ class ChatFlow {
             this.setCurrentFlow("sleep");
           });
         display({
-          status: "listening",
+          status: t("listening"),
           emoji: "😐",
           RGB: "#00ff00",
-          text: "Listening...",
+          text: t("listeningText"),
         });
         break;
       case "asr":
         this.currentFlowName = "asr";
         display({
-          status: "recognizing",
+          status: t("recognizing"),
         });
         onButtonDoubleClick(null);
         Promise.race([
@@ -243,7 +244,7 @@ class ChatFlow {
             if (result) {
               console.log("Audio recognized result:", result);
               this.asrText = result;
-              display({ status: "recognizing", text: result });
+              display({ status: t("recognizing"), text: result });
               this.setCurrentFlow("answer");
             } else {
               this.setCurrentFlow("sleep");
@@ -253,7 +254,7 @@ class ChatFlow {
         break;
       case "answer":
         display({
-          status: "answering...",
+          status: t("answering"),
           RGB: "#00c8a3",
         });
         this.currentFlowName = "answer";
