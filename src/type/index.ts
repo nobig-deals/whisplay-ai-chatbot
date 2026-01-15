@@ -39,6 +39,7 @@ export enum TTSServer {
   openai = "openai",
   tencent = "tencent",
   gemini = "gemini",
+  elevenlabs = "elevenlabs",
   piper = "piper",
   piperhttp = "piper-http",
   llm8850melotts = "llm8850melotts",

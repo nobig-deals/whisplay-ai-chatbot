@@ -47,6 +47,7 @@ import {
 import VolcengineTTS from "./volcengine/volcengine-tts";
 import OpenAITTS from "./openai/openai-tts";
 import geminiTTS from "./gemini/gemini-tts";
+import elevenlabsTTS from "./elevenlabs/elevenlabs-tts";
 import piperTTS from "./local/piper-tts";
 import piperHttpTTS from "./local/piper-http-tts";
 import LLM8850MeloTTS from "./local/llm8850-melotts";
@@ -170,6 +171,9 @@ switch (ttsServer) {
   case TTSServer.gemini:
     ttsProcessor = geminiTTS;
     break;
+  case TTSServer.elevenlabs:
+    ttsProcessor = elevenlabsTTS;
+    break;
   case TTSServer.piper:
     ttsProcessor = piperTTS;
     break;
@@ -181,7 +185,7 @@ switch (ttsServer) {
     break;
   default:
     console.warn(
-      `unknown tts server: ${ttsServer}, should be volcengine/tencent/openai/gemini/piper/piper-http/llm8850melotts`
+      `unknown tts server: ${ttsServer}, should be volcengine/tencent/openai/gemini/elevenlabs/piper/piper-http/llm8850melotts`
     );
     break;
 }
