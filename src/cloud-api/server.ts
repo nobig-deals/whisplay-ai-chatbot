@@ -15,6 +15,7 @@ import {
 import { recognizeAudio as OpenAIASR } from "./openai/openai-asr";
 import { recognizeAudio as GeminiASR } from "./gemini/gemini-asr";
 import { recognizeAudio as ElevenLabsASR } from "./elevenlabs/elevenlabs-asr";
+import { createRealtimeASRSession, RealtimeASRSession } from "./elevenlabs/elevenlabs-asr-realtime";
 import { recognizeAudio as VoskASR } from "./local/vosk-asr";
 import { recognizeAudio as WisperASR } from "./local/whisper-asr";
 import { recognizeAudio as WisperHttpASR } from "./local/whisper-http-asr";
@@ -189,5 +190,16 @@ switch (ttsServer) {
     );
     break;
 }
+
+// Check if realtime ASR is available (currently only ElevenLabs)
+export const isRealtimeASRAvailable = asrServer === ASRServer.elevenlabs;
+
+// Factory for realtime ASR sessions
+export const createRealtimeASR = (): RealtimeASRSession | null => {
+  if (asrServer === ASRServer.elevenlabs) {
+    return createRealtimeASRSession();
+  }
+  return null;
+};
 
 export { recognizeAudio, chatWithLLMStream, ttsProcessor, resetChatHistory };

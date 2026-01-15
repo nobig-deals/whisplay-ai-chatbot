@@ -18,7 +18,10 @@ import {
   recognizeAudio,
   chatWithLLMStream,
   ttsProcessor,
+  isRealtimeASRAvailable,
+  createRealtimeASR,
 } from "../cloud-api/server";
+import type { RealtimeASRSession } from "../cloud-api/elevenlabs/elevenlabs-asr-realtime";
 import { extractEmojis } from "../utils";
 import { StreamResponser } from "./StreamResponsor";
 import { cameraDir, recordingsDir } from "../utils/dir";
@@ -34,6 +37,7 @@ class ChatFlow {
   thinkingSentences: string[] = [];
   answerId: number = 0;
   enableCamera: boolean = false;
+  realtimeASRSession: RealtimeASRSession | null = null;
 
   constructor(options: { enableCamera?: boolean } = {}) {
     console.log(`[${getCurrentTimeTag()}] ChatBot started.`);
@@ -136,10 +140,63 @@ class ChatFlow {
       case "listening":
         this.answerId += 1;
         this.currentFlowName = "listening";
+        onButtonPressed(noop);
+
+        // Use realtime ASR if available (ElevenLabs)
+        if (isRealtimeASRAvailable) {
+          this.realtimeASRSession = createRealtimeASR();
+          if (this.realtimeASRSession) {
+            this.realtimeASRSession.on("partial", (text: string) => {
+              if (this.currentFlowName === "listening" && text) {
+                display({
+                  status: "listening",
+                  text: text,
+                  RGB: "#00ff00",
+                });
+              }
+            });
+
+            this.realtimeASRSession.on("error", (error: any) => {
+              console.error("Realtime ASR error:", error);
+            });
+
+            // Start the realtime session (this also starts recording)
+            this.realtimeASRSession.start();
+
+            onButtonReleased(() => {
+              display({
+                status: "recognizing",
+                RGB: "#ff6800", // yellow
+              });
+              // Stop and get final transcript
+              this.realtimeASRSession?.stop().then((result) => {
+                this.realtimeASRSession = null;
+                if (this.currentFlowName !== "listening") return;
+                if (result) {
+                  console.log("Realtime ASR result:", result);
+                  this.asrText = result;
+                  display({ status: "recognizing", text: result });
+                  this.setCurrentFlow("answer");
+                } else {
+                  this.setCurrentFlow("sleep");
+                }
+              });
+            });
+
+            display({
+              status: "listening",
+              emoji: "😐",
+              RGB: "#00ff00",
+              text: "Listening...",
+            });
+            break;
+          }
+        }
+
+        // Fallback to file-based ASR
         this.currentRecordFilePath = `${
           this.recordingsDir
         }/user-${Date.now()}.${recordFileFormat}`;
-        onButtonPressed(noop);
         const { result, stop } = recordAudioManually(
           this.currentRecordFilePath
         );
