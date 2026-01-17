@@ -15,9 +15,9 @@ from utils import ColorUtils, ImageUtils, TextUtils
 scroll_thread = None
 scroll_stop_event = threading.Event()
 
-status_font_size=24
-emoji_font_size=40
-battery_font_size=13
+status_font_size=20
+emoji_font_size=32
+battery_font_size=12
 
 # Global variables
 current_status = "Hello"
@@ -46,7 +46,7 @@ class RenderThread(threading.Thread):
         # Clear logo after 1 second and start running loop
         time.sleep(1)
         self.running = True
-        self.main_text_font = ImageFont.truetype(self.font_path, 20)
+        self.main_text_font = ImageFont.truetype(self.font_path, 16)
         self.main_text_line_height = self.main_text_font.getmetrics()[0] + self.main_text_font.getmetrics()[1]
         self.text_cache_image = None
         self.current_render_text = ""
@@ -95,7 +95,7 @@ class RenderThread(threading.Thread):
                     print(f"[Render] Failed to load image {current_image_path}: {e}")
         else:
             current_image = None
-            header_height = 88 + 10  # header + margin
+            header_height = 70 + 4  # header + margin
             # create a black background image for header
             image = Image.new("RGBA", (self.whisplay.LCD_WIDTH, header_height), (0, 0, 0, 255))
             draw = ImageDraw.Draw(image)
@@ -125,7 +125,7 @@ class RenderThread(threading.Thread):
         if not text:
             return
         # Use main text font
-        font = ImageFont.truetype(self.font_path, 20)
+        font = ImageFont.truetype(self.font_path, 16)
         lines = TextUtils.wrap_text(draw, text, font, self.whisplay.LCD_WIDTH - 20)
 
         # Line height
@@ -176,7 +176,7 @@ class RenderThread(threading.Thread):
         ascent_status, _ = status_font.getmetrics()
         ascent_emoji, _ = emoji_font.getmetrics()
 
-        top_height = status_font_size + emoji_font_size + 20
+        top_height = status_font_size + emoji_font_size + 12
 
         # Draw status centered
         status_bbox = status_font.getbbox(current_status)
@@ -186,7 +186,7 @@ class RenderThread(threading.Thread):
         # Draw emoji centered
         emoji_bbox = emoji_font.getbbox(current_emoji)
         emoji_w = emoji_bbox[2] - emoji_bbox[0]
-        TextUtils.draw_mixed_text(draw, image, current_emoji, emoji_font, ((image_width - emoji_w) // 2, status_font_size + 8))
+        TextUtils.draw_mixed_text(draw, image, current_emoji, emoji_font, ((image_width - emoji_w) // 2, status_font_size + 4))
         
         # Draw battery icon
         if battery_level is not None:
