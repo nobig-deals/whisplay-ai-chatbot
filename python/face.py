@@ -1,11 +1,106 @@
 """
 Face expression renderer for Whisplay bot display.
-Inspired by Akno project - uses vector shapes for expressive robot eyes.
+Supports both procedural robot eyes and Lottie animations.
 """
 
 import time
 import random
+import zipfile
+import json
+import os
 from PIL import Image, ImageDraw
+
+try:
+    from rlottie_python import LottieAnimation
+    LOTTIE_AVAILABLE = True
+except ImportError:
+    LOTTIE_AVAILABLE = False
+
+
+class LottieFace:
+    """Renders a Lottie animation as a face display."""
+
+    def __init__(self, lottie_path: str, width=240, height=280):
+        if not LOTTIE_AVAILABLE:
+            raise ImportError("rlottie-python is required for LottieFace. Install with: pip install rlottie-python[full]")
+
+        self.width = width
+        self.height = height
+        self.bg_color = (0, 0, 0)
+
+        # Load the Lottie animation
+        self.animation = self._load_lottie(lottie_path)
+        self.total_frames = self.animation.lottie_animation_get_totalframe()
+        self.frame_rate = self.animation.lottie_animation_get_framerate()
+        self.duration = self.animation.lottie_animation_get_duration()
+
+        # Animation state
+        self.current_frame = 0
+        self.last_update_time = time.time()
+        self.frame_duration = 1.0 / self.frame_rate
+
+    def _load_lottie(self, path: str) -> 'LottieAnimation':
+        """Load a Lottie animation from .lottie (ZIP) or .json file."""
+        if path.endswith('.lottie'):
+            # .lottie files are ZIP archives containing the JSON
+            with zipfile.ZipFile(path, 'r') as zf:
+                # Find the animation JSON file
+                manifest_data = zf.read('manifest.json')
+                manifest = json.loads(manifest_data)
+
+                # Get the animation file path from manifest
+                animations = manifest.get('animations', [])
+                if animations:
+                    anim_id = animations[0].get('id', '12345')
+                    anim_path = f"animations/{anim_id}.json"
+                else:
+                    # Fallback: look for any .json in animations folder
+                    json_files = [f for f in zf.namelist() if f.startswith('animations/') and f.endswith('.json')]
+                    if json_files:
+                        anim_path = json_files[0]
+                    else:
+                        raise ValueError(f"No animation JSON found in {path}")
+
+                # Extract JSON content
+                json_data = zf.read(anim_path).decode('utf-8')
+                return LottieAnimation.from_data(json_data)
+        else:
+            # Regular JSON file
+            return LottieAnimation.from_file(path)
+
+    def update(self):
+        """Update animation state. Call this every frame."""
+        current_time = time.time()
+        elapsed = current_time - self.last_update_time
+
+        # Advance frames based on elapsed time
+        frames_to_advance = int(elapsed / self.frame_duration)
+        if frames_to_advance > 0:
+            self.current_frame = (self.current_frame + frames_to_advance) % self.total_frames
+            self.last_update_time = current_time
+
+    def render(self) -> Image.Image:
+        """Render the current frame as a PIL Image."""
+        # Render directly at target size (rlottie handles scaling)
+        frame = self.animation.render_pillow_frame(
+            frame_num=self.current_frame,
+            width=self.width,
+            height=self.height
+        )
+
+        # The frame is RGBA, composite onto black background for consistent output
+        background = Image.new("RGBA", (self.width, self.height), self.bg_color + (255,))
+        background.paste(frame, (0, 0), frame)
+
+        return background
+
+    def set_expression(self, expression: str):
+        """No-op for compatibility with Face interface. Lottie plays its own animation."""
+        pass
+
+    def set_eye_color(self, color: tuple):
+        """No-op for compatibility with Face interface."""
+        pass
 
 
 class Face:

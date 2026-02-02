@@ -5,59 +5,90 @@ Run: python3 test_face.py
 """
 
 import time
+import os
 from PIL import Image
-from face import Face
+from face import Face, LottieFace, LOTTIE_AVAILABLE
+
+
+def test_procedural_face():
+    """Test the procedural robot face."""
+    print("\n" + "=" * 40)
+    print("Testing Procedural Robot Face")
+    print("=" * 40)
+
+    face = Face(width=240, height=280)
+    expressions = ["normal", "happy", "sad", "angry", "surprised"]
+
+    for expr in expressions:
+        print(f"  Rendering: {expr}")
+        face.set_expression(expr)
+        face.update()
+        frame = face.render()
+        frame.save(f"face_preview_{expr}.png")
+
+    print("  Saved expression previews")
+
+
+def test_lottie_face():
+    """Test the Lottie animation face."""
+    print("\n" + "=" * 40)
+    print("Testing Lottie Animation Face")
+    print("=" * 40)
+
+    lottie_path = os.path.join(os.path.dirname(__file__), "assets", "Animated Clown Face.lottie")
+
+    if not os.path.exists(lottie_path):
+        print(f"  Lottie file not found: {lottie_path}")
+        return
+
+    if not LOTTIE_AVAILABLE:
+        print("  rlottie-python not installed. Install with: pip install rlottie-python[full]")
+        return
+
+    face = LottieFace(lottie_path, width=240, height=280)
+    print(f"  Loaded: {lottie_path}")
+    print(f"  Frames: {face.total_frames}, FPS: {face.frame_rate}, Duration: {face.duration:.2f}s")
+
+    # Save a few sample frames
+    for frame_num in [0, 30, 60, 90, 120]:
+        face.current_frame = frame_num
+        frame = face.render()
+        frame.save(f"lottie_frame_{frame_num:03d}.png")
+        print(f"  Saved: lottie_frame_{frame_num:03d}.png")
+
+    # Create animated GIF
+    print("\n  Creating animated GIF...")
+    gif_frames = []
+    face.current_frame = 0
+    face.last_update_time = time.time()
+
+    # Capture frames for the full animation loop
+    for i in range(face.total_frames):
+        face.current_frame = i
+        frame = face.render().convert("P", palette=Image.ADAPTIVE, colors=256)
+        gif_frames.append(frame)
+
+    gif_frames[0].save(
+        "lottie_animation.gif",
+        save_all=True,
+        append_images=gif_frames[1:],
+        duration=int(1000 / face.frame_rate),  # Convert fps to ms per frame
+        loop=0
+    )
+    print("  Saved: lottie_animation.gif")
 
 
 def main():
     print("Face Preview Test")
-    print("=" * 40)
 
-    # Create face with display dimensions
-    face = Face(width=240, height=280)
+    # Test procedural face
+    test_procedural_face()
 
-    # Test all expressions
-    expressions = ["normal", "happy", "sad", "angry", "surprised"]
-
-    for expr in expressions:
-        print(f"\nRendering expression: {expr}")
-        face.set_expression(expr)
-
-        # Render a few frames to show the blink animation
-        frames = []
-        for i in range(90):  # 3 seconds at 30fps
-            face.update()
-            frame = face.render()
-            frames.append(frame.copy())
-
-        # Save the first frame as a preview
-        frames[0].save(f"face_preview_{expr}.png")
-        print(f"  Saved: face_preview_{expr}.png")
-
-    # Create an animated GIF showing the idle blink
-    print("\nCreating animated GIF with blink animation...")
-    face.set_expression("normal")
-    face.last_blink_time = time.time()  # Reset blink timer
-    face.next_blink_delay = 1.0  # Blink sooner for demo
-
-    gif_frames = []
-    for i in range(120):  # 4 seconds
-        face.update()
-        frame = face.render().convert("P", palette=Image.ADAPTIVE, colors=16)
-        gif_frames.append(frame)
-        time.sleep(1/30)  # Simulate 30fps timing
-
-    gif_frames[0].save(
-        "face_animation.gif",
-        save_all=True,
-        append_images=gif_frames[1:],
-        duration=33,  # ~30fps
-        loop=0
-    )
-    print("Saved: face_animation.gif")
+    # Test Lottie face if available
+    test_lottie_face()
 
     print("\n" + "=" * 40)
-    print("Preview files created! Open them to see the face.")
+    print("Done! Open the generated files to preview.")
 
 
 if __name__ == "__main__":

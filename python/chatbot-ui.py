@@ -11,7 +11,7 @@ import signal
 from whisplay import WhisplayBoard
 from camera import CameraThread
 from utils import ColorUtils, ImageUtils, TextUtils
-from face import Face
+from face import Face, LottieFace, LOTTIE_AVAILABLE
 
 scroll_thread = None
 scroll_stop_event = threading.Event()
@@ -56,8 +56,14 @@ class RenderThread(threading.Thread):
         self.text_cache_image = None
         self.current_render_text = ""
 
-        # Initialize face renderer
-        self.face = Face(whisplay.LCD_WIDTH, whisplay.LCD_HEIGHT)
+        # Initialize face renderer (prefer Lottie if available)
+        lottie_path = os.path.join(os.path.dirname(__file__), "assets", "Animated Clown Face.lottie")
+        if LOTTIE_AVAILABLE and os.path.exists(lottie_path):
+            self.face = LottieFace(lottie_path, whisplay.LCD_WIDTH, whisplay.LCD_HEIGHT)
+            print(f"[Face] Using Lottie animation: {lottie_path}")
+        else:
+            self.face = Face(whisplay.LCD_WIDTH, whisplay.LCD_HEIGHT)
+            print("[Face] Using procedural robot face")
 
     def render_init_screen(self):
         # Display logo on startup
