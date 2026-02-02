@@ -11,6 +11,7 @@ import signal
 from whisplay import WhisplayBoard
 from camera import CameraThread
 from utils import ColorUtils, ImageUtils, TextUtils
+from face import Face
 
 scroll_thread = None
 scroll_stop_event = threading.Event()
@@ -36,6 +37,10 @@ camera_capture_image_path = ""
 camera_thread = None
 clients = {}
 
+# Face mode - replaces header/emoji with animated face
+face_mode = True  # Enable face mode by default
+current_expression = "normal"
+
 class RenderThread(threading.Thread):
     def __init__(self, whisplay, font_path, fps=30):
         super().__init__()
@@ -51,6 +56,9 @@ class RenderThread(threading.Thread):
         self.text_cache_image = None
         self.current_render_text = ""
 
+        # Initialize face renderer
+        self.face = Face(whisplay.LCD_WIDTH, whisplay.LCD_HEIGHT)
+
     def render_init_screen(self):
         # Display logo on startup
         logo_path = os.path.join("img", "logo.png")
@@ -62,7 +70,7 @@ class RenderThread(threading.Thread):
             whisplay.draw_image(0, 0, whisplay.LCD_WIDTH, whisplay.LCD_HEIGHT, rgb565_data)
 
     def render_frame(self, status, emoji, text, scroll_top, battery_level, battery_color):
-        global current_scroll_speed, current_image_path, current_image, camera_mode
+        global current_scroll_speed, current_image_path, current_image, camera_mode, face_mode, current_expression
         if camera_mode:
             return  # Skip rendering if in camera mode
         if current_image_path not in [None, ""]:
@@ -93,19 +101,27 @@ class RenderThread(threading.Thread):
                     self.whisplay.draw_image(0, 0, self.whisplay.LCD_WIDTH, self.whisplay.LCD_HEIGHT, rgb565_data)
                 except Exception as e:
                     print(f"[Render] Failed to load image {current_image_path}: {e}")
+        elif face_mode:
+            # Render animated face instead of header+text
+            self.face.set_expression(current_expression)
+            self.face.update()  # Update animation state
+            face_image = self.face.render()
+            rgb565_data = ImageUtils.image_to_rgb565(face_image, self.whisplay.LCD_WIDTH, self.whisplay.LCD_HEIGHT)
+            self.whisplay.draw_image(0, 0, self.whisplay.LCD_WIDTH, self.whisplay.LCD_HEIGHT, rgb565_data)
         else:
+            # Legacy mode: header + text area
             current_image = None
             header_height = 70 + 4  # header + margin
             # create a black background image for header
             image = Image.new("RGBA", (self.whisplay.LCD_WIDTH, header_height), (0, 0, 0, 255))
             draw = ImageDraw.Draw(image)
-            
+
             clock_font_size = 24
             # clock_font = ImageFont.truetype(self.font_path, clock_font_size)
 
             # current_time = time.strftime("%H:%M:%S")
             # draw.text((self.whisplay.LCD_WIDTH // 2, self.whisplay.LCD_HEIGHT // 2), current_time, font=clock_font, fill=(255, 255, 255, 255))
-            
+
             # render header
             self.render_header(image, draw, status, emoji, battery_level, battery_color)
             self.whisplay.draw_image(0, 0, self.whisplay.LCD_WIDTH, header_height, ImageUtils.image_to_rgb565(image, self.whisplay.LCD_WIDTH, header_height))
@@ -343,7 +359,7 @@ def on_button_release():
     send_to_all_clients(notification)
 
 def handle_client(client_socket, addr, whisplay):
-    global camera_capture_image_path, camera_mode, camera_thread
+    global camera_capture_image_path, camera_mode, camera_thread, face_mode, current_expression
     print(f"[Socket] Client {addr} connected")
     clients[addr] = client_socket
     try:
@@ -376,6 +392,18 @@ def handle_client(client_socket, addr, whisplay):
                     capture_image_path = content.get("capture_image_path", None)
                     # boolean to enable camera mode
                     set_camera_mode = content.get("camera_mode", None)
+
+                    # Face mode controls
+                    set_face_mode = content.get("face_mode", None)
+                    expression = content.get("expression", None)
+
+                    if set_face_mode is not None:
+                        face_mode = set_face_mode
+                        print(f"[Face] Face mode: {'enabled' if face_mode else 'disabled'}")
+
+                    if expression is not None:
+                        current_expression = expression
+                        print(f"[Face] Expression set to: {current_expression}")
 
                     if rgbled:
                         rgb255_tuple = ColorUtils.get_rgb255_from_any(rgbled)

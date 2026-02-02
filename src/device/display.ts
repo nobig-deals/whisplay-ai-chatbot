@@ -15,6 +15,9 @@ interface Status {
   image: string;
   camera_mode: boolean;
   capture_image_path: string;
+  // Face mode - animated robot face
+  face_mode: boolean;
+  expression: "normal" | "happy" | "sad" | "angry" | "surprised";
 }
 
 export class WhisplayDisplay {
@@ -30,6 +33,8 @@ export class WhisplayDisplay {
     image: "",
     camera_mode: false,
     capture_image_path: "",
+    face_mode: true, // Enable animated face by default
+    expression: "normal",
   };
 
   private client = null as Socket | null;
@@ -236,6 +241,8 @@ export class WhisplayDisplay {
       battery_level,
       battery_color,
       image,
+      face_mode,
+      expression,
     } = {
       ...this.currentStatus,
       ...newStatus,
@@ -255,6 +262,8 @@ export class WhisplayDisplay {
     this.currentStatus.battery_level = battery_level;
     this.currentStatus.battery_color = battery_color;
     this.currentStatus.image = image;
+    this.currentStatus.face_mode = face_mode;
+    this.currentStatus.expression = expression;
 
     const changedValuesObj = Object.fromEntries(changedValues);
     changedValuesObj.brightness = 100;
