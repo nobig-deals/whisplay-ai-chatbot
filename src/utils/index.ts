@@ -49,6 +49,18 @@ export const extractEmojis = (str: string): string => {
   return "😐";
 };
 
+// Extract face expression from AI response [face:expression]
+export const extractFace = (str: string): { face: string; cleanText: string } => {
+  const faceMatch = str.match(/\[face:(\w+)\]/i);
+  if (faceMatch) {
+    return {
+      face: faceMatch[1].toLowerCase(),
+      cleanText: str.replace(/\[face:\w+\]/gi, "").trim(),
+    };
+  }
+  return { face: "smile", cleanText: str };
+};
+
 export const getCurrentTimeTag = (): string => {
   return moment().format("YYYY-MM-DD HH:mm:ss");
 };
@@ -182,8 +194,9 @@ export const transformToGeminiType = (parameters: Object) => {
 };
 
 export const purifyTextForTTS = (text: string): string => {
-  // Remove emojis and special characters
+  // Remove face tags, emojis and special characters
   return text
+    .replace(/\[face:\w+\]/gi, "")  // Remove [face:expression] tags
     .replace(/[*#~]|[\p{Emoji_Presentation}\u200d\ufe0f]/gu, "")
     .trim();
 };

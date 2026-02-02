@@ -22,7 +22,7 @@ import {
   createRealtimeASR,
 } from "../cloud-api/server";
 import type { RealtimeASRSession } from "../cloud-api/elevenlabs/elevenlabs-asr-realtime";
-import { extractEmojis } from "../utils";
+import { extractEmojis, extractFace } from "../utils";
 import { t } from "../i18n";
 import { StreamResponser } from "./StreamResponsor";
 import { cameraDir, recordingsDir } from "../utils/dir";
@@ -49,20 +49,24 @@ class ChatFlow {
       (sentences: string[]) => {
         if (this.currentFlowName !== "answer") return;
         const fullText = sentences.join(" ");
+        const { face, cleanText } = extractFace(fullText);
         display({
           status: t("answering"),
-          emoji: extractEmojis(fullText) || "😊",
-          text: fullText,
+          emoji: extractEmojis(cleanText) || "😊",
+          text: cleanText,
           RGB: "#0000ff",
           scroll_speed: 3,
+          expression: face,
         });
       },
       (text: string) => {
         if (this.currentFlowName !== "answer") return;
+        const { face, cleanText } = extractFace(text);
         display({
           status: t("answering"),
-          text: text || undefined,
+          text: cleanText || undefined,
           scroll_speed: 3,
+          expression: face,
         });
       }
     );
@@ -96,6 +100,7 @@ class ChatFlow {
         text: displayText,
         RGB: "#ff6800", // yellow
         scroll_speed: 6,
+        expression: "thinking",
       });
     }
     this.partialThinking = remaining;
@@ -129,6 +134,7 @@ class ChatFlow {
           status: t("idle"),
           emoji: "😴",
           RGB: "#000055",
+          expression: "sleep",
           ...(getCurrentStatus().text === t("listeningText")
             ? {
                 text: this.enableCamera
@@ -189,6 +195,7 @@ class ChatFlow {
               emoji: "😐",
               RGB: "#00ff00",
               text: t("listeningText"),
+              expression: "smile",
             });
             break;
           }
@@ -220,6 +227,7 @@ class ChatFlow {
           emoji: "😐",
           RGB: "#00ff00",
           text: t("listeningText"),
+          expression: "smile",
         });
         break;
       case "asr":

@@ -33,14 +33,55 @@ class LottieFace:
             animations_dir = os.path.dirname(lottie_path)
         self.animations_dir = animations_dir
 
-        # Expression to animation file mapping
+        # Expression to animation file mapping (20 faces)
         self.expression_files = {
-            "normal": lottie_path,  # Default/active face (smile)
+            # Default states
+            "normal": lottie_path,  # smile - default face
+            "smile": lottie_path,
             "happy": lottie_path,
+
+            # Idle/Sleep
             "idle": os.path.join(animations_dir, "sleep.json"),
             "sleep": os.path.join(animations_dir, "sleep.json"),
-            "thinking": os.path.join(animations_dir, "hmm.json"),  # Waiting for AI
+            "tired": os.path.join(animations_dir, "sleep.json"),
+
+            # Thinking/Waiting
+            "thinking": os.path.join(animations_dir, "hmm.json"),
             "waiting": os.path.join(animations_dir, "hmm.json"),
+            "hmm": os.path.join(animations_dir, "hmm.json"),
+            "confused": os.path.join(animations_dir, "hmm.json"),
+
+            # Emotions
+            "angry": os.path.join(animations_dir, "angry.json"),
+            "rage": os.path.join(animations_dir, "rage.json"),
+            "sad": os.path.join(animations_dir, "cry.json"),
+            "cry": os.path.join(animations_dir, "cry.json"),
+            "sob": os.path.join(animations_dir, "sob.json"),
+
+            # Positive
+            "laughing": os.path.join(animations_dir, "laughing.json"),
+            "lol": os.path.join(animations_dir, "laughing.json"),
+            "love": os.path.join(animations_dir, "heart-eyes.json"),
+            "heart": os.path.join(animations_dir, "heart-eyes.json"),
+            "kiss": os.path.join(animations_dir, "kissing-heart.json"),
+            "cool": os.path.join(animations_dir, "cool.json"),
+            "party": os.path.join(animations_dir, "party.json"),
+
+            # Surprise/Shock
+            "surprised": os.path.join(animations_dir, "astonished.json"),
+            "astonished": os.path.join(animations_dir, "astonished.json"),
+            "wow": os.path.join(animations_dir, "astonished.json"),
+
+            # Other
+            "grimace": os.path.join(animations_dir, "grimacing.json"),
+            "awkward": os.path.join(animations_dir, "grimacing.json"),
+            "hypnotized": os.path.join(animations_dir, "hypnotized.json"),
+            "dizzy": os.path.join(animations_dir, "hypnotized.json"),
+            "sneeze": os.path.join(animations_dir, "sneeze.json"),
+            "sick": os.path.join(animations_dir, "sneeze.json"),
+            "beep": os.path.join(animations_dir, "beep.json"),
+            "robot": os.path.join(animations_dir, "beep.json"),
+            "poop": os.path.join(animations_dir, "poop.json"),
         }
 
         # Load animations (lazy load - only load what exists)
@@ -111,11 +152,9 @@ class LottieFace:
             self.last_update_time = current_time
 
     def render(self) -> Image.Image:
-        """Render the current frame as a PIL Image, scaled to fill the screen."""
-        # Scale up to fill screen (animations have internal padding ~15%)
-        # Render larger than needed, then crop to fill
-        scale = 1.6  # Adjust this to control how much the face fills the screen
-        render_size = int(max(self.width, self.height) * scale)
+        """Render the current frame as a PIL Image, stretched to fill the screen."""
+        # Render at square size, then crop aggressively and stretch to fill
+        render_size = 400  # Fixed size for consistent cropping
 
         frame = self.animation.render_pillow_frame(
             frame_num=self.current_frame,
@@ -123,12 +162,14 @@ class LottieFace:
             height=render_size
         )
 
-        # Crop to target size (center crop)
-        left = (render_size - self.width) // 2
-        top = (render_size - self.height) // 2
-        frame = frame.crop((left, top, left + self.width, top + self.height))
+        # Aggressive crop to remove internal padding (25% from each edge)
+        crop = int(render_size * 0.24)
+        frame = frame.crop((crop, crop, render_size - crop, render_size - crop))
 
-        # Composite onto black background for consistent output
+        # Stretch to fill the full display dimensions (will distort slightly)
+        frame = frame.resize((self.width, self.height), Image.LANCZOS)
+
+        # Composite onto black background
         background = Image.new("RGBA", (self.width, self.height), self.bg_color + (255,))
         background.paste(frame, (0, 0), frame)
 

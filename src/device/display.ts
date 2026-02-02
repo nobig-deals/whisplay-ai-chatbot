@@ -17,7 +17,7 @@ interface Status {
   capture_image_path: string;
   // Face mode - animated robot face
   face_mode: boolean;
-  expression: "normal" | "happy" | "sad" | "angry" | "surprised";
+  expression: string;  // Dynamic expression from AI response
 }
 
 export class WhisplayDisplay {
