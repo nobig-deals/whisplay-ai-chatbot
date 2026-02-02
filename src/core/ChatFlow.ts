@@ -26,7 +26,8 @@ import { extractEmojis, extractFace } from "../utils";
 import { t } from "../i18n";
 import { StreamResponser } from "./StreamResponsor";
 import { cameraDir, recordingsDir } from "../utils/dir";
-import { getLatestDisplayImg, setLatestCapturedImg } from "../utils/image";
+import { getLatestDisplayImg, setLatestCapturedImg, getLatestCapturedImg } from "../utils/image";
+import { analyzeImageDirectly } from "../cloud-api/openai/openai-vision-direct";
 
 class ChatFlow {
   currentFlowName: string = "";
@@ -142,11 +143,37 @@ class ChatFlow {
           onCameraCapture(() => {
             setLatestCapturedImg(captureImgPath);
             console.log(`[Camera] Photo captured: ${captureImgPath}`);
-            // Auto-analyze the captured image
-            setTimeout(() => {
-              this.asrText = "What do you see in this image? Describe it.";
-              display({ camera_mode: false });
-              this.setCurrentFlow("answer");
+            // Auto-analyze the captured image directly
+            setTimeout(async () => {
+              display({ camera_mode: false, expression: "thinking" });
+              display({ status: t("thinking"), text: "Analyzing image...", RGB: "#ff6800" });
+
+              try {
+                const description = await analyzeImageDirectly(captureImgPath);
+                console.log(`[Vision] Result: ${description}`);
+
+                // Speak the result
+                const { face, cleanText } = extractFace(description);
+                display({
+                  status: t("answering"),
+                  text: cleanText,
+                  RGB: "#0000ff",
+                  expression: face || "smile",
+                });
+
+                // Use TTS to speak the description
+                const ttsResult = await ttsProcessor(cleanText);
+                if (ttsResult.buffer || ttsResult.filePath) {
+                  const { playAudioData } = await import("../device/audio");
+                  await playAudioData(ttsResult);
+                }
+
+                this.setCurrentFlow("sleep");
+              } catch (error) {
+                console.error("[Vision] Error:", error);
+                display({ text: "Failed to analyze image", expression: "sad" });
+                this.setCurrentFlow("sleep");
+              }
             }, 2500); // Wait for camera mode to exit
           });
         }
