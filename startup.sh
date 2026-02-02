@@ -1,12 +1,19 @@
 #!/bin/bash
 
-# disable graphical interface
-sudo systemctl set-default multi-user.target
+# Get current user and directory
+CURRENT_USER=$(whoami)
+CURRENT_DIR=$(pwd)
+USER_ID=$(id -u)
 
-# WORKING_DIR="/home/pi/whisplay-ai-chatbot"
-echo "Setting up the chatbot service..."
+echo "Setting up chatbot service for user: $CURRENT_USER"
+echo "Working directory: $CURRENT_DIR"
 
-sudo bash -c 'cat > /etc/systemd/system/chatbot.service <<EOF
+# disable graphical interface (optional - comment out if you want GUI)
+# sudo systemctl set-default multi-user.target
+
+echo "Creating chatbot service file..."
+
+sudo bash -c "cat > /etc/systemd/system/chatbot.service <<EOF
 [Unit]
 Description=Chatbot Service
 After=network.target sound.target
@@ -14,33 +21,38 @@ Wants=sound.target
 
 [Service]
 Type=simple
-User=pi
+User=$CURRENT_USER
 Group=audio
 SupplementaryGroups=audio
 
-WorkingDirectory=/home/pi/whisplay-ai-chatbot
-ExecStart=/bin/bash /home/pi/whisplay-ai-chatbot/run_chatbot.sh
+WorkingDirectory=$CURRENT_DIR
+ExecStart=/bin/bash $CURRENT_DIR/run_chatbot.sh
 
 # Environment variables (ALSA / mpg123 are very important)
-Environment=PATH=/usr/local/bin:/usr/bin:/bin:/home/pi/.local/bin
-Environment=HOME=/home/pi
-Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/home/$CURRENT_USER/.local/bin
+Environment=HOME=/home/$CURRENT_USER
+Environment=XDG_RUNTIME_DIR=/run/user/$USER_ID
 
 # Make sure the service has access to audio devices
 PrivateDevices=no
 
-StandardOutput=append:/home/pi/whisplay-ai-chatbot/chatbot.log
-StandardError=append:/home/pi/whisplay-ai-chatbot/chatbot.log
+StandardOutput=append:$CURRENT_DIR/chatbot.log
+StandardError=append:$CURRENT_DIR/chatbot.log
 
 Restart=always
-RestartSec=2
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-EOF'
+EOF"
 
 echo "Chatbot service file created."
-echo "Enabling and starting the chatbot service..."
+echo "Reloading systemd daemon..."
+sudo systemctl daemon-reload
 
+echo "Enabling and starting the chatbot service..."
 sudo systemctl enable chatbot.service
 sudo systemctl start chatbot.service
+
+echo "Done! Check status with: sudo systemctl status chatbot.service"
+echo "View logs with: tail -f $CURRENT_DIR/chatbot.log"

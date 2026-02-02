@@ -1,6 +1,7 @@
 #!/bin/bash
 # Set working directory
-export NVM_DIR="/home/pi/.nvm"
+CURRENT_USER=$(whoami)
+export NVM_DIR="/home/$CURRENT_USER/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
 
