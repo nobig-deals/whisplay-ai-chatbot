@@ -141,6 +141,13 @@ class ChatFlow {
           });
           onCameraCapture(() => {
             setLatestCapturedImg(captureImgPath);
+            console.log(`[Camera] Photo captured: ${captureImgPath}`);
+            // Auto-analyze the captured image
+            setTimeout(() => {
+              this.asrText = "What do you see in this image? Describe it.";
+              display({ camera_mode: false });
+              this.setCurrentFlow("answer");
+            }, 2500); // Wait for camera mode to exit
           });
         }
         // First show smile, then change to sleep after 10 seconds
