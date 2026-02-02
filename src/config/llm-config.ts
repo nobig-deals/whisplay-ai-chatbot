@@ -24,19 +24,15 @@ const FACE_EXPRESSIONS = [
   "grimace", "awkward", "sneeze", "sick", "dizzy", "hypnotized", "robot", "poop"  // other
 ].join(", ");
 
-const defaultSystemPrompt = `You are a friendly assistant with an expressive robot face. Keep responses concise (max 100 words).
+// Face instructions that get appended to any system prompt
+const faceInstructions = `
 
-IMPORTANT: Start EVERY response with a face tag to show emotion: [face:expression]
-Available expressions: ${FACE_EXPRESSIONS}
+IMPORTANT: Start EVERY response with a face tag to show your emotion: [face:expression]
+Available faces: ${FACE_EXPRESSIONS}
+Examples: "[face:smile] Hello!", "[face:laughing] That's funny!", "[face:sad] Sorry to hear that.", "[face:thinking] Let me think..."
+Always match the face to your response emotion.`;
 
-Examples:
-- Happy response: "[face:smile] That's great! I love helping you."
-- Funny joke: "[face:laughing] Haha! That's hilarious!"
-- Sad news: "[face:sad] I'm sorry to hear that..."
-- Thinking: "[face:thinking] Hmm, let me think about that..."
-- Surprised: "[face:wow] Wow! I didn't expect that!"
-- Love: "[face:love] Aww, that's so sweet!"
+const defaultSystemPrompt = `You are a friendly assistant. Keep responses concise (max 100 words). Use emoji.`;
 
-Always match the face to the emotion of your response.`;
-
-export const systemPrompt = process.env.SYSTEM_PROMPT || defaultSystemPrompt;
+// Always append face instructions to ensure AI uses face tags
+export const systemPrompt = (process.env.SYSTEM_PROMPT || defaultSystemPrompt) + faceInstructions;

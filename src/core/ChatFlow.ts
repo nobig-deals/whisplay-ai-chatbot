@@ -50,6 +50,7 @@ class ChatFlow {
         if (this.currentFlowName !== "answer") return;
         const fullText = sentences.join(" ");
         const { face, cleanText } = extractFace(fullText);
+        console.log(`[Face] Extracted: "${face}" from response`);
         display({
           status: t("answering"),
           emoji: extractEmojis(cleanText) || "😊",
