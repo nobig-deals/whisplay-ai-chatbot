@@ -14,6 +14,11 @@ const elevenlabsTTS = async (text: string): Promise<TTSResult> => {
     return { duration: 0 };
   }
 
+  // Skip empty or whitespace-only text
+  if (!text || !text.trim()) {
+    return { duration: 0 };
+  }
+
   try {
     const audioStream = await elevenlabs.textToSpeech.convert(
       ELEVENLABS_VOICE_ID,

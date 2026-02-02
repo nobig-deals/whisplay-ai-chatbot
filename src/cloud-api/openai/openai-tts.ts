@@ -15,6 +15,10 @@ const openaiTTS = async (
     console.error("OpenAI API key is not set.");
     return { duration: 0 };
   }
+  // Skip empty or whitespace-only text
+  if (!text || !text.trim()) {
+    return { duration: 0 };
+  }
   const mp3 = await openai.audio.speech.create({
     model: openAiVoiceModel,
     voice: openAiVoiceType,
