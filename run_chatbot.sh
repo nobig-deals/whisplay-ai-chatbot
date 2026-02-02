@@ -40,6 +40,7 @@ get_env_value() {
 # load .env variables, exclude comments and empty lines
 # check if .env file exists
 initial_volume_level=114
+initial_mic_level=63
 serve_ollama=false
 if [ -f ".env" ]; then
   # Load only SERVE_OLLAMA from .env (ignore comments/other vars)
@@ -73,8 +74,18 @@ else
   exit 1
 fi
 
-# Adjust initial volume
+# Adjust initial volume (speaker and microphone)
+echo "Setting speaker volume to $initial_volume_level..."
 amixer -c $card_index set Speaker $initial_volume_level
+
+# Set microphone/capture volume to max
+echo "Setting microphone volume to $initial_mic_level..."
+amixer -c $card_index set Capture $initial_mic_level 2>/dev/null || true
+amixer -c $card_index set 'Capture Volume' $initial_mic_level 2>/dev/null || true
+amixer -c $card_index set ADC 192 2>/dev/null || true
+amixer -c $card_index set 'ADC Volume' 192 2>/dev/null || true
+# Unmute capture
+amixer -c $card_index set Capture cap 2>/dev/null || true
 
 if [ "$serve_ollama" = true ]; then
   echo "Starting Ollama server..."
