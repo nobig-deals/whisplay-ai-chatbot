@@ -111,15 +111,24 @@ class LottieFace:
             self.last_update_time = current_time
 
     def render(self) -> Image.Image:
-        """Render the current frame as a PIL Image."""
-        # Render directly at target size (rlottie handles scaling)
+        """Render the current frame as a PIL Image, scaled to fill the screen."""
+        # Scale up to fill screen (animations have internal padding ~15%)
+        # Render larger than needed, then crop to fill
+        scale = 1.6  # Adjust this to control how much the face fills the screen
+        render_size = int(max(self.width, self.height) * scale)
+
         frame = self.animation.render_pillow_frame(
             frame_num=self.current_frame,
-            width=self.width,
-            height=self.height
+            width=render_size,
+            height=render_size
         )
 
-        # The frame is RGBA, composite onto black background for consistent output
+        # Crop to target size (center crop)
+        left = (render_size - self.width) // 2
+        top = (render_size - self.height) // 2
+        frame = frame.crop((left, top, left + self.width, top + self.height))
+
+        # Composite onto black background for consistent output
         background = Image.new("RGBA", (self.width, self.height), self.bg_color + (255,))
         background.paste(frame, (0, 0), frame)
 
