@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from "fs";
 import { openai, openaiVisionModel } from "./openai";
 import { get } from "lodash";
 
-export const analyzeImageDirectly = async (imagePath: string, prompt: string = "What do you see in this image? Describe it in detail."): Promise<string> => {
+export const analyzeImageDirectly = async (imagePath: string, prompt: string = "Co vidíš na tomto obrázku? Popiš to stručně v 1-2 větách česky."): Promise<string> => {
   if (!openai) {
     console.error("[Vision] OpenAI API key is not set.");
     return "I cannot analyze images - OpenAI API is not configured.";
