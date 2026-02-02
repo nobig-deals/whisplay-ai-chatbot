@@ -39,7 +39,7 @@ get_env_value() {
 
 # load .env variables, exclude comments and empty lines
 # check if .env file exists
-initial_volume_level=114
+initial_volume_level=127
 serve_ollama=false
 if [ -f ".env" ]; then
   # Load only SERVE_OLLAMA from .env (ignore comments/other vars)
@@ -74,8 +74,10 @@ else
 fi
 
 # Adjust initial volume (speaker and microphone)
-echo "Setting speaker volume to $initial_volume_level..."
+echo "Setting speaker volume to max..."
 amixer -c $card_index set Speaker $initial_volume_level
+amixer -c $card_index set Headphone 127 2>/dev/null || true
+amixer -c $card_index set Playback 255 2>/dev/null || true
 
 # Set microphone/capture volume to max
 echo "Setting microphone volume to max..."
