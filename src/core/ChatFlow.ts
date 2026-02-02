@@ -145,6 +145,12 @@ class ChatFlow {
             console.log(`[Camera] Photo captured: ${captureImgPath}`);
             // Auto-analyze the captured image directly
             setTimeout(async () => {
+              // Clear sleep timer and prevent sleep expression during camera processing
+              if (this.sleepExpressionTimer) {
+                clearTimeout(this.sleepExpressionTimer);
+                this.sleepExpressionTimer = null;
+              }
+              this.currentFlowName = "camera";
               display({ camera_mode: false, expression: "thinking" });
               display({ status: t("thinking"), text: "Analyzing image...", RGB: "#ff6800" });
 
