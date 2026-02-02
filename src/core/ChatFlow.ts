@@ -39,6 +39,7 @@ class ChatFlow {
   answerId: number = 0;
   enableCamera: boolean = false;
   realtimeASRSession: RealtimeASRSession | null = null;
+  sleepExpressionTimer: NodeJS.Timeout | null = null;
 
   constructor(options: { enableCamera?: boolean } = {}) {
     console.log(`[${getCurrentTimeTag()}] ChatBot started.`);
@@ -112,7 +113,17 @@ class ChatFlow {
     switch (flowName) {
       case "sleep":
         this.currentFlowName = "sleep";
+        // Clear any existing sleep timer
+        if (this.sleepExpressionTimer) {
+          clearTimeout(this.sleepExpressionTimer);
+          this.sleepExpressionTimer = null;
+        }
         onButtonPressed(() => {
+          // Clear sleep timer when waking up
+          if (this.sleepExpressionTimer) {
+            clearTimeout(this.sleepExpressionTimer);
+            this.sleepExpressionTimer = null;
+          }
           this.setCurrentFlow("listening");
         });
         onButtonReleased(noop);
@@ -131,11 +142,12 @@ class ChatFlow {
             setLatestCapturedImg(captureImgPath);
           });
         }
+        // First show smile, then change to sleep after 10 seconds
         display({
           status: t("idle"),
-          emoji: "😴",
+          emoji: "😊",
           RGB: "#000055",
-          expression: "sleep",
+          expression: "smile",
           ...(getCurrentStatus().text === t("listeningText")
             ? {
                 text: this.enableCamera
@@ -144,6 +156,15 @@ class ChatFlow {
               }
             : {}),
         });
+        // Delay sleep expression by 10 seconds
+        this.sleepExpressionTimer = setTimeout(() => {
+          if (this.currentFlowName === "sleep") {
+            display({
+              emoji: "😴",
+              expression: "sleep",
+            });
+          }
+        }, 10000);
         break;
       case "listening":
         this.answerId += 1;
