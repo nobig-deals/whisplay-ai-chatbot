@@ -18,9 +18,9 @@ except ImportError:
 
 
 class LottieFace:
-    """Renders a Lottie animation as a face display."""
+    """Renders Lottie animations as a face display with expression support."""
 
-    def __init__(self, lottie_path: str, width=240, height=280):
+    def __init__(self, lottie_path: str, width=240, height=280, animations_dir: str = None):
         if not LOTTIE_AVAILABLE:
             raise ImportError("rlottie-python is required for LottieFace. Install with: pip install rlottie-python[full]")
 
@@ -28,8 +28,28 @@ class LottieFace:
         self.height = height
         self.bg_color = (0, 0, 0)
 
-        # Load the Lottie animation
-        self.animation = self._load_lottie(lottie_path)
+        # Determine animations directory
+        if animations_dir is None:
+            animations_dir = os.path.dirname(lottie_path)
+        self.animations_dir = animations_dir
+
+        # Expression to animation file mapping
+        self.expression_files = {
+            "normal": lottie_path,  # Default/active face (smile)
+            "happy": lottie_path,
+            "idle": os.path.join(animations_dir, "sleep.json"),
+            "sleep": os.path.join(animations_dir, "sleep.json"),
+            "thinking": os.path.join(animations_dir, "hmm.json"),  # Waiting for AI
+            "waiting": os.path.join(animations_dir, "hmm.json"),
+        }
+
+        # Load animations (lazy load - only load what exists)
+        self.animations = {}
+        self.current_expression = "normal"
+        self._load_animation("normal", lottie_path)
+
+        # Set initial animation reference
+        self.animation = self.animations["normal"]
         self.total_frames = self.animation.lottie_animation_get_totalframe()
         self.frame_rate = self.animation.lottie_animation_get_framerate()
         self.duration = self.animation.lottie_animation_get_duration()
@@ -38,6 +58,17 @@ class LottieFace:
         self.current_frame = 0
         self.last_update_time = time.time()
         self.frame_duration = 1.0 / self.frame_rate
+
+    def _load_animation(self, expression: str, path: str):
+        """Load an animation for a specific expression."""
+        if expression in self.animations:
+            return  # Already loaded
+        if not os.path.exists(path):
+            return  # File doesn't exist, skip
+        try:
+            self.animations[expression] = self._load_lottie(path)
+        except Exception as e:
+            print(f"[LottieFace] Failed to load {path}: {e}")
 
     def _load_lottie(self, path: str) -> 'LottieAnimation':
         """Load a Lottie animation from .lottie (ZIP) or .json file."""
@@ -95,8 +126,28 @@ class LottieFace:
         return background
 
     def set_expression(self, expression: str):
-        """No-op for compatibility with Face interface. Lottie plays its own animation."""
-        pass
+        """Switch to a different animation based on expression."""
+        # Map expression to animation file
+        if expression in self.expression_files:
+            anim_path = self.expression_files[expression]
+        else:
+            # Default to normal for unknown expressions
+            expression = "normal"
+            anim_path = self.expression_files["normal"]
+
+        # Load animation if not already loaded
+        if expression not in self.animations:
+            self._load_animation(expression, anim_path)
+
+        # Switch animation if available and different
+        if expression in self.animations and expression != self.current_expression:
+            self.current_expression = expression
+            self.animation = self.animations[expression]
+            self.total_frames = self.animation.lottie_animation_get_totalframe()
+            self.frame_rate = self.animation.lottie_animation_get_framerate()
+            self.frame_duration = 1.0 / self.frame_rate
+            self.current_frame = 0  # Reset to start of new animation
+            self.last_update_time = time.time()
 
     def set_eye_color(self, color: tuple):
         """No-op for compatibility with Face interface."""

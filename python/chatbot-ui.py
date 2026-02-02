@@ -57,7 +57,7 @@ class RenderThread(threading.Thread):
         self.current_render_text = ""
 
         # Initialize face renderer (prefer Lottie if available)
-        lottie_path = os.path.join(os.path.dirname(__file__), "assets", "Animated Clown Face.lottie")
+        lottie_path = os.path.join(os.path.dirname(__file__), "assets", "smile.json")
         if LOTTIE_AVAILABLE and os.path.exists(lottie_path):
             self.face = LottieFace(lottie_path, whisplay.LCD_WIDTH, whisplay.LCD_HEIGHT)
             print(f"[Face] Using Lottie animation: {lottie_path}")
