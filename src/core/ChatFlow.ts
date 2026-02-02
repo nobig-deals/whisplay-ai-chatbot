@@ -64,6 +64,7 @@ class ChatFlow {
       (text: string) => {
         if (this.currentFlowName !== "answer") return;
         const { face, cleanText } = extractFace(text);
+        console.log(`[AI Response] ${cleanText}`);
         display({
           status: t("answering"),
           text: cleanText || undefined,
@@ -202,7 +203,7 @@ class ChatFlow {
                 this.realtimeASRSession = null;
                 if (this.currentFlowName !== "listening") return;
                 if (result) {
-                  console.log("Realtime ASR result:", result);
+                  console.log(`[User Said] ${result}`);
                   this.asrText = result;
                   display({ status: t("recognizing"), text: result });
                   this.setCurrentFlow("answer");
@@ -272,7 +273,7 @@ class ChatFlow {
             this.setCurrentFlow("listening");
           } else {
             if (result) {
-              console.log("Audio recognized result:", result);
+              console.log(`[User Said] ${result}`);
               this.asrText = result;
               display({ status: t("recognizing"), text: result });
               this.setCurrentFlow("answer");

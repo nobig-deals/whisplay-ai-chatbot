@@ -36,8 +36,9 @@ function startPlayerProcess() {
     //   "-", // read from stdin
     // ]);
   } else {
-    // use mpg123 for mp3 files
+    // use mpg123 for mp3 files (--quiet suppresses metadata spam)
     return spawn("mpg123", [
+      "--quiet",
       "-",
       "--scale",
       "2",
@@ -212,8 +213,7 @@ const playAudioData = (params: TTSResult): Promise<void> => {
     try {
       process.stdin?.write(audioBuffer);
     } catch (e) {}
-    process.stdout?.on("data", (data) => console.log(data.toString()));
-    process.stderr?.on("data", (data) => console.error(data.toString()));
+    // Don't log mpg123 stdout/stderr - too noisy
     process.on("exit", (code) => {
       player.isPlaying = false;
       if (code !== 0) {
