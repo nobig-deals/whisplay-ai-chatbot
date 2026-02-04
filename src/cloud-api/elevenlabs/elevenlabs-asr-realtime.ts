@@ -7,6 +7,87 @@ import {
 } from "@elevenlabs/elevenlabs-js";
 import { elevenlabs, ELEVENLABS_LANGUAGE_CODE } from "./elevenlabs";
 
+// ═══════════════════════════════════════════════════════════════════════════
+// COLORED LOGGING FOR ELEVENLABS SCRIBE V2 REALTIME
+// ═══════════════════════════════════════════════════════════════════════════
+
+const COLORS = {
+  reset: "\x1b[0m",
+  bright: "\x1b[1m",
+  dim: "\x1b[2m",
+
+  // Foreground
+  black: "\x1b[30m",
+  red: "\x1b[31m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  blue: "\x1b[34m",
+  magenta: "\x1b[35m",
+  cyan: "\x1b[36m",
+  white: "\x1b[37m",
+
+  // Background
+  bgBlack: "\x1b[40m",
+  bgRed: "\x1b[41m",
+  bgGreen: "\x1b[42m",
+  bgYellow: "\x1b[43m",
+  bgBlue: "\x1b[44m",
+  bgMagenta: "\x1b[45m",
+  bgCyan: "\x1b[46m",
+  bgWhite: "\x1b[47m",
+};
+
+const LOG_PREFIX = `${COLORS.bgMagenta}${COLORS.white}${COLORS.bright} 🎤 SCRIBE ${COLORS.reset}`;
+
+function logScribe(type: "event" | "data" | "error" | "warn" | "info" | "audio", message: string, data?: any) {
+  const timestamp = new Date().toISOString().split('T')[1].slice(0, -1); // HH:MM:SS.sss
+  const timeStr = `${COLORS.dim}[${timestamp}]${COLORS.reset}`;
+
+  let typeLabel = "";
+  switch (type) {
+    case "event":
+      typeLabel = `${COLORS.bgCyan}${COLORS.black} EVENT ${COLORS.reset}`;
+      break;
+    case "data":
+      typeLabel = `${COLORS.bgGreen}${COLORS.black} DATA  ${COLORS.reset}`;
+      break;
+    case "error":
+      typeLabel = `${COLORS.bgRed}${COLORS.white} ERROR ${COLORS.reset}`;
+      break;
+    case "warn":
+      typeLabel = `${COLORS.bgYellow}${COLORS.black} WARN  ${COLORS.reset}`;
+      break;
+    case "info":
+      typeLabel = `${COLORS.bgBlue}${COLORS.white} INFO  ${COLORS.reset}`;
+      break;
+    case "audio":
+      typeLabel = `${COLORS.bgBlack}${COLORS.white} AUDIO ${COLORS.reset}`;
+      break;
+  }
+
+  console.log(`${LOG_PREFIX} ${timeStr} ${typeLabel} ${message}`);
+
+  if (data !== undefined) {
+    const dataStr = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+    const lines = dataStr.split('\n');
+    const indent = "                                           "; // Align with message
+    lines.forEach(line => {
+      console.log(`${COLORS.dim}${indent}│${COLORS.reset} ${COLORS.cyan}${line}${COLORS.reset}`);
+    });
+  }
+}
+
+function logSeparator(label?: string) {
+  const line = "═".repeat(60);
+  if (label) {
+    console.log(`${COLORS.magenta}╔${line}╗${COLORS.reset}`);
+    console.log(`${COLORS.magenta}║${COLORS.reset} ${COLORS.bright}${label}${COLORS.reset}`);
+    console.log(`${COLORS.magenta}╚${line}╝${COLORS.reset}`);
+  } else {
+    console.log(`${COLORS.dim}${"─".repeat(70)}${COLORS.reset}`);
+  }
+}
+
 export interface RealtimeASRSession extends EventEmitter {
   start(): void;
   stop(): Promise<string>;
@@ -20,6 +101,8 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
   private partialTranscript: string = "";
   private isConnected: boolean = false;
   private resolveStop: ((value: string) => void) | null = null;
+  private audioChunkCount: number = 0;
+  private totalAudioBytes: number = 0;
 
   constructor() {
     super();
@@ -27,12 +110,22 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
 
   async start(): Promise<void> {
     if (!elevenlabs) {
-      console.error("ElevenLabs API key is not set.");
+      logScribe("error", "ElevenLabs API key is not set!");
       return;
     }
 
     this.finalTranscript = "";
     this.partialTranscript = "";
+    this.audioChunkCount = 0;
+    this.totalAudioBytes = 0;
+
+    logSeparator("ELEVENLABS SCRIBE V2 REALTIME - SESSION START");
+    logScribe("info", "Connecting to ElevenLabs WebSocket...", {
+      model: "scribe_v2_realtime",
+      audioFormat: "PCM_16000",
+      sampleRate: 16000,
+      languageCode: ELEVENLABS_LANGUAGE_CODE || "(auto-detect)",
+    });
 
     try {
       // Connect to realtime WebSocket
@@ -43,48 +136,73 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
         ...(ELEVENLABS_LANGUAGE_CODE && { languageCode: ELEVENLABS_LANGUAGE_CODE }),
       });
 
+      // Log ALL raw WebSocket events for debugging
       this.connection.on(RealtimeEvents.SESSION_STARTED, (data: any) => {
-        console.log("ElevenLabs realtime session started");
+        logScribe("event", "SESSION_STARTED received", data);
         this.isConnected = true;
         this.emit("connected");
         this.startRecording();
       });
 
       this.connection.on(RealtimeEvents.PARTIAL_TRANSCRIPT, (data: any) => {
-        this.partialTranscript = data.text || "";
+        const text = data.text || "";
+        const textPreview = text.length > 50 ? text.slice(0, 50) + "..." : text;
+        logScribe("data", `PARTIAL_TRANSCRIPT: "${textPreview}"`, {
+          text: data.text,
+          textLength: text.length,
+          rawData: data,
+        });
+        this.partialTranscript = text;
         this.emit("partial", this.partialTranscript);
       });
 
       this.connection.on(RealtimeEvents.COMMITTED_TRANSCRIPT, (data: any) => {
         this.finalTranscript = data.text || "";
-        console.log("ElevenLabs committed transcript:", this.finalTranscript);
+        logSeparator();
+        logScribe("event", "🎯 COMMITTED_TRANSCRIPT received!", {
+          text: this.finalTranscript,
+          textLength: this.finalTranscript.length,
+          rawData: data,
+        });
+        logSeparator();
         this.emit("final", this.finalTranscript);
 
         if (this.resolveStop) {
+          logScribe("info", "Resolving stop() promise with committed transcript");
           this.resolveStop(this.finalTranscript);
           this.resolveStop = null;
         }
       });
 
       this.connection.on(RealtimeEvents.ERROR, (error: any) => {
-        console.error("ElevenLabs realtime error:", error);
+        logScribe("error", "WebSocket ERROR event", error);
         this.emit("error", error);
       });
 
       this.connection.on(RealtimeEvents.CLOSE, () => {
-        console.log("ElevenLabs realtime connection closed");
+        logScribe("event", "WebSocket CLOSE event - connection closed");
+        logScribe("info", `Session stats: ${this.audioChunkCount} chunks, ${this.totalAudioBytes} bytes sent`);
         this.isConnected = false;
         this.emit("closed");
       });
 
+      logScribe("info", "WebSocket connection established, waiting for SESSION_STARTED...");
+
     } catch (error) {
-      console.error("Failed to connect to ElevenLabs realtime:", error);
+      logScribe("error", "Failed to connect to ElevenLabs realtime", error);
       this.emit("error", error);
     }
   }
 
   private startRecording(): void {
     const soundCardIndex = process.env.SOUND_CARD_INDEX || "1";
+
+    logScribe("info", "Starting audio recording with sox", {
+      format: "PCM 16-bit signed",
+      sampleRate: "16000 Hz",
+      channels: "mono",
+      device: "alsa default",
+    });
 
     // Record raw PCM audio at 16kHz, mono, 16-bit
     this.recordingProcess = spawn("sox", [
@@ -105,64 +223,102 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
       // Sox outputs info to stderr, ignore unless it's an error
       const msg = data.toString();
       if (msg.includes("FAIL") || msg.includes("error")) {
-        console.error("Recording error:", msg);
+        logScribe("error", "Recording error from sox", msg);
       }
     });
 
     this.recordingProcess.on("error", (err) => {
-      console.error("Recording process error:", err);
+      logScribe("error", "Recording process error", err);
       this.emit("error", err);
     });
 
-    console.log("Started streaming audio to ElevenLabs");
+    logScribe("info", "🎙️ Started streaming audio to ElevenLabs WebSocket");
   }
 
   sendAudioChunk(chunk: Buffer): void {
     if (this.connection && this.isConnected) {
       try {
+        this.audioChunkCount++;
+        this.totalAudioBytes += chunk.length;
+
         const base64Audio = chunk.toString("base64");
         this.connection.send({
           audioBase64: base64Audio,
           sampleRate: 16000,
         });
+
+        // Log audio stats every 50 chunks (~1.6 seconds of audio at typical chunk sizes)
+        if (this.audioChunkCount % 50 === 0) {
+          logScribe("audio", `Streaming... chunks: ${this.audioChunkCount}, bytes: ${this.totalAudioBytes}, partial: "${this.partialTranscript.slice(-30)}..."`);
+        }
       } catch (error) {
-        console.error("Error sending audio chunk:", error);
+        logScribe("error", "Error sending audio chunk", error);
+      }
+    } else {
+      if (!this.isConnected) {
+        logScribe("warn", "Tried to send audio chunk but not connected!");
       }
     }
   }
 
   async stop(): Promise<string> {
     return new Promise((resolve) => {
+      logSeparator("STOP REQUESTED - BUTTON RELEASED");
+      logScribe("info", "Stop called - preparing to commit transcription", {
+        audioChunksSent: this.audioChunkCount,
+        totalBytesSent: this.totalAudioBytes,
+        currentPartialTranscript: this.partialTranscript,
+        currentFinalTranscript: this.finalTranscript,
+        isConnected: this.isConnected,
+      });
+
       this.resolveStop = resolve;
 
       // Stop recording
       if (this.recordingProcess) {
+        logScribe("info", "Stopping sox recording process...");
         try {
           this.recordingProcess.kill("SIGINT");
-        } catch (e) {}
+        } catch (e) {
+          logScribe("warn", "Error killing recording process", e);
+        }
         this.recordingProcess = null;
+        logScribe("info", "Recording process stopped");
       }
 
       // Commit the transcription
       if (this.connection && this.isConnected) {
         try {
+          logScribe("event", "📤 Sending COMMIT to ElevenLabs WebSocket...");
+          logScribe("info", "Waiting for COMMITTED_TRANSCRIPT response (3s timeout)...");
           this.connection.commit();
 
           // Set a timeout in case commit response doesn't come
           setTimeout(() => {
             if (this.resolveStop) {
-              console.log("Timeout waiting for final transcript, using partial");
+              logSeparator();
+              logScribe("warn", "⏰ TIMEOUT! No COMMITTED_TRANSCRIPT received after 3 seconds", {
+                usingPartialTranscript: this.partialTranscript,
+                finalTranscriptWas: this.finalTranscript,
+                willReturn: this.partialTranscript || this.finalTranscript,
+              });
+              logSeparator();
               this.resolveStop(this.partialTranscript || this.finalTranscript);
               this.resolveStop = null;
               this.cleanup();
             }
           }, 3000);
         } catch (error) {
-          console.error("Error committing transcription:", error);
+          logScribe("error", "Error calling commit()", error);
+          logScribe("warn", "Falling back to partial transcript", this.partialTranscript);
           resolve(this.partialTranscript || "");
           this.cleanup();
         }
       } else {
+        logScribe("warn", "No connection available for commit!", {
+          hasConnection: !!this.connection,
+          isConnected: this.isConnected,
+        });
         resolve("");
         this.cleanup();
       }
@@ -170,13 +326,18 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
   }
 
   private cleanup(): void {
+    logScribe("info", "Cleaning up WebSocket connection...");
     if (this.connection) {
       try {
         this.connection.close();
-      } catch (e) {}
+        logScribe("info", "WebSocket connection closed");
+      } catch (e) {
+        logScribe("warn", "Error closing connection", e);
+      }
       this.connection = null;
     }
     this.isConnected = false;
+    logSeparator("SESSION ENDED");
   }
 }
 
