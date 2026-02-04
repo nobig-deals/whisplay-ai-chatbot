@@ -108,6 +108,7 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
   private audioBuffer: Buffer[] = [];
   private bufferedChunkCount: number = 0;
   private bufferedBytes: number = 0;
+  private connectionTimeout: NodeJS.Timeout | null = null;
 
   constructor() {
     super();
@@ -126,6 +127,10 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
     this.audioBuffer = [];
     this.bufferedChunkCount = 0;
     this.bufferedBytes = 0;
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
 
     logSeparator("ELEVENLABS SCRIBE V2 REALTIME - SESSION START");
 
@@ -149,8 +154,22 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
         ...(ELEVENLABS_LANGUAGE_CODE && { languageCode: ELEVENLABS_LANGUAGE_CODE }),
       });
 
+      // Set a 5-second timeout for SESSION_STARTED
+      this.connectionTimeout = setTimeout(() => {
+        logScribe("error", "⏰ CONNECTION TIMEOUT! SESSION_STARTED not received after 5 seconds");
+        logScribe("warn", `Lost ${this.bufferedChunkCount} buffered chunks (${this.bufferedBytes} bytes)`);
+        this.emit("error", new Error("Connection timeout - SESSION_STARTED not received"));
+        this.cleanup();
+      }, 5000);
+
       // Log ALL raw WebSocket events for debugging
       this.connection.on(RealtimeEvents.SESSION_STARTED, (data: any) => {
+        // Clear the connection timeout
+        if (this.connectionTimeout) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
+
         logScribe("event", "SESSION_STARTED received", data);
         this.isConnected = true;
 
@@ -392,6 +411,21 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
 
   private cleanup(): void {
     logScribe("info", "Cleaning up WebSocket connection...");
+
+    // Clear connection timeout if pending
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
+
+    // Stop recording if still running
+    if (this.recordingProcess) {
+      try {
+        this.recordingProcess.kill("SIGINT");
+      } catch (e) {}
+      this.recordingProcess = null;
+    }
+
     if (this.connection) {
       try {
         this.connection.close();
