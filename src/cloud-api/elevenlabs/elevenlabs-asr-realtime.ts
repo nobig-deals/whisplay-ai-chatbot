@@ -104,6 +104,11 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
   private audioChunkCount: number = 0;
   private totalAudioBytes: number = 0;
 
+  // Audio buffering for capturing speech during WebSocket connection
+  private audioBuffer: Buffer[] = [];
+  private bufferedChunkCount: number = 0;
+  private bufferedBytes: number = 0;
+
   constructor() {
     super();
   }
@@ -118,9 +123,17 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
     this.partialTranscript = "";
     this.audioChunkCount = 0;
     this.totalAudioBytes = 0;
+    this.audioBuffer = [];
+    this.bufferedChunkCount = 0;
+    this.bufferedBytes = 0;
 
     logSeparator("ELEVENLABS SCRIBE V2 REALTIME - SESSION START");
-    logScribe("info", "Connecting to ElevenLabs WebSocket...", {
+
+    // START RECORDING IMMEDIATELY - don't wait for WebSocket!
+    logScribe("info", "🎙️ Starting audio recording IMMEDIATELY (will buffer until WebSocket ready)");
+    this.startRecording();
+
+    logScribe("info", "Connecting to ElevenLabs WebSocket in parallel...", {
       model: "scribe_v2_realtime",
       audioFormat: "PCM_16000",
       sampleRate: 16000,
@@ -128,7 +141,7 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
     });
 
     try {
-      // Connect to realtime WebSocket
+      // Connect to realtime WebSocket (recording is already happening!)
       this.connection = await elevenlabs.speechToText.realtime.connect({
         modelId: "scribe_v2_realtime",
         audioFormat: AudioFormat.PCM_16000,
@@ -140,8 +153,11 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
       this.connection.on(RealtimeEvents.SESSION_STARTED, (data: any) => {
         logScribe("event", "SESSION_STARTED received", data);
         this.isConnected = true;
+
+        // FLUSH THE BUFFER - send all audio captured during connection!
+        this.flushAudioBuffer();
+
         this.emit("connected");
-        this.startRecording();
       });
 
       this.connection.on(RealtimeEvents.PARTIAL_TRANSCRIPT, (data: any) => {
@@ -181,7 +197,7 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
 
       this.connection.on(RealtimeEvents.CLOSE, () => {
         logScribe("event", "WebSocket CLOSE event - connection closed");
-        logScribe("info", `Session stats: ${this.audioChunkCount} chunks, ${this.totalAudioBytes} bytes sent`);
+        logScribe("info", `Session stats: ${this.audioChunkCount} chunks, ${this.totalAudioBytes} bytes sent (${this.bufferedChunkCount} were buffered)`);
         this.isConnected = false;
         this.emit("closed");
       });
@@ -195,8 +211,6 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
   }
 
   private startRecording(): void {
-    const soundCardIndex = process.env.SOUND_CARD_INDEX || "1";
-
     logScribe("info", "Starting audio recording with sox", {
       format: "PCM 16-bit signed",
       sampleRate: "16000 Hz",
@@ -232,11 +246,38 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
       this.emit("error", err);
     });
 
-    logScribe("info", "🎙️ Started streaming audio to ElevenLabs WebSocket");
+    logScribe("info", "🎙️ Recording started - buffering audio until WebSocket is ready");
+  }
+
+  private flushAudioBuffer(): void {
+    if (this.audioBuffer.length === 0) {
+      logScribe("info", "No buffered audio to flush");
+      return;
+    }
+
+    logScribe("info", `📤 Flushing ${this.audioBuffer.length} buffered audio chunks (${this.bufferedBytes} bytes)...`);
+
+    for (const chunk of this.audioBuffer) {
+      try {
+        const base64Audio = chunk.toString("base64");
+        this.connection.send({
+          audioBase64: base64Audio,
+          sampleRate: 16000,
+        });
+        this.audioChunkCount++;
+        this.totalAudioBytes += chunk.length;
+      } catch (error) {
+        logScribe("error", "Error sending buffered audio chunk", error);
+      }
+    }
+
+    logScribe("info", `✅ Buffer flushed! Now streaming live audio directly`);
+    this.audioBuffer = []; // Clear the buffer
   }
 
   sendAudioChunk(chunk: Buffer): void {
     if (this.connection && this.isConnected) {
+      // WebSocket is ready - send directly
       try {
         this.audioChunkCount++;
         this.totalAudioBytes += chunk.length;
@@ -255,8 +296,14 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
         logScribe("error", "Error sending audio chunk", error);
       }
     } else {
-      if (!this.isConnected) {
-        logScribe("warn", "Tried to send audio chunk but not connected!");
+      // WebSocket not ready yet - BUFFER the audio!
+      this.audioBuffer.push(chunk);
+      this.bufferedChunkCount++;
+      this.bufferedBytes += chunk.length;
+
+      // Log buffering progress every 10 chunks
+      if (this.bufferedChunkCount % 10 === 0) {
+        logScribe("audio", `⏳ Buffering audio while connecting... ${this.bufferedChunkCount} chunks, ${this.bufferedBytes} bytes`);
       }
     }
   }
@@ -267,6 +314,8 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
       logScribe("info", "Stop called - preparing to commit transcription", {
         audioChunksSent: this.audioChunkCount,
         totalBytesSent: this.totalAudioBytes,
+        bufferedChunks: this.bufferedChunkCount,
+        bufferedBytes: this.bufferedBytes,
         currentPartialTranscript: this.partialTranscript,
         currentFinalTranscript: this.finalTranscript,
         isConnected: this.isConnected,
