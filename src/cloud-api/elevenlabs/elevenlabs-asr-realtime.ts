@@ -311,7 +311,7 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
   async stop(): Promise<string> {
     return new Promise((resolve) => {
       logSeparator("STOP REQUESTED - BUTTON RELEASED");
-      logScribe("info", "Stop called - preparing to commit transcription", {
+      logScribe("info", "Stop called - waiting 300ms for final audio before commit", {
         audioChunksSent: this.audioChunkCount,
         totalBytesSent: this.totalAudioBytes,
         bufferedChunks: this.bufferedChunkCount,
@@ -323,55 +323,71 @@ export class ElevenLabsRealtimeASR extends EventEmitter implements RealtimeASRSe
 
       this.resolveStop = resolve;
 
-      // Stop recording
-      if (this.recordingProcess) {
-        logScribe("info", "Stopping sox recording process...");
-        try {
-          this.recordingProcess.kill("SIGINT");
-        } catch (e) {
-          logScribe("warn", "Error killing recording process", e);
-        }
-        this.recordingProcess = null;
-        logScribe("info", "Recording process stopped");
+      // Wait 300ms to capture trailing audio, then stop and commit
+      // This gives ElevenLabs time to process the final word boundaries
+      setTimeout(() => {
+        this.stopAndCommit();
+      }, 300);
+    });
+  }
+
+  private stopAndCommit(): void {
+    logScribe("info", "300ms delay complete, now stopping recording...");
+
+    // Stop recording
+    if (this.recordingProcess) {
+      logScribe("info", "Stopping sox recording process...");
+      try {
+        this.recordingProcess.kill("SIGINT");
+      } catch (e) {
+        logScribe("warn", "Error killing recording process", e);
       }
+      this.recordingProcess = null;
+      logScribe("info", "Recording process stopped");
+    }
 
-      // Commit the transcription
-      if (this.connection && this.isConnected) {
-        try {
-          logScribe("event", "📤 Sending COMMIT to ElevenLabs WebSocket...");
-          logScribe("info", "Waiting for COMMITTED_TRANSCRIPT response (3s timeout)...");
-          this.connection.commit();
+    // Commit the transcription
+    if (this.connection && this.isConnected) {
+      try {
+        logScribe("event", "📤 Sending COMMIT to ElevenLabs WebSocket...");
+        logScribe("info", "Waiting for COMMITTED_TRANSCRIPT response (3s timeout)...");
+        this.connection.commit();
 
-          // Set a timeout in case commit response doesn't come
-          setTimeout(() => {
-            if (this.resolveStop) {
-              logSeparator();
-              logScribe("warn", "⏰ TIMEOUT! No COMMITTED_TRANSCRIPT received after 3 seconds", {
-                usingPartialTranscript: this.partialTranscript,
-                finalTranscriptWas: this.finalTranscript,
-                willReturn: this.partialTranscript || this.finalTranscript,
-              });
-              logSeparator();
-              this.resolveStop(this.partialTranscript || this.finalTranscript);
-              this.resolveStop = null;
-              this.cleanup();
-            }
-          }, 3000);
-        } catch (error) {
-          logScribe("error", "Error calling commit()", error);
-          logScribe("warn", "Falling back to partial transcript", this.partialTranscript);
-          resolve(this.partialTranscript || "");
-          this.cleanup();
+        // Set a timeout in case commit response doesn't come
+        setTimeout(() => {
+          if (this.resolveStop) {
+            logSeparator();
+            logScribe("warn", "⏰ TIMEOUT! No COMMITTED_TRANSCRIPT received after 3 seconds", {
+              usingPartialTranscript: this.partialTranscript,
+              finalTranscriptWas: this.finalTranscript,
+              willReturn: this.partialTranscript || this.finalTranscript,
+            });
+            logSeparator();
+            this.resolveStop(this.partialTranscript || this.finalTranscript);
+            this.resolveStop = null;
+            this.cleanup();
+          }
+        }, 3000);
+      } catch (error) {
+        logScribe("error", "Error calling commit()", error);
+        logScribe("warn", "Falling back to partial transcript", this.partialTranscript);
+        if (this.resolveStop) {
+          this.resolveStop(this.partialTranscript || "");
+          this.resolveStop = null;
         }
-      } else {
-        logScribe("warn", "No connection available for commit!", {
-          hasConnection: !!this.connection,
-          isConnected: this.isConnected,
-        });
-        resolve("");
         this.cleanup();
       }
-    });
+    } else {
+      logScribe("warn", "No connection available for commit!", {
+        hasConnection: !!this.connection,
+        isConnected: this.isConnected,
+      });
+      if (this.resolveStop) {
+        this.resolveStop("");
+        this.resolveStop = null;
+      }
+      this.cleanup();
+    }
   }
 
   private cleanup(): void {
